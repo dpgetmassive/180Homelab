@@ -2,13 +2,14 @@
 
 Comprehensive documentation for the rova.getmassive.com.au homelab infrastructure.
 
-**Last Updated:** 2025-11-09
+**Last Updated:** 2025-11-10
 
 ## Quick Links
 
 - [Infrastructure Inventory](INVENTORY.md) - All hosts, IPs, and specifications
 - [Network Documentation](NETWORK.md) - Network topology and configuration
 - [Services Catalog](SERVICES.md) - All running services and access URLs
+- [Adding New Services](services/adding-services.md) - Complete guide for adding services
 - [Ansible Guide](ansible/README.md) - Automation and management
 - [Service Guides](services/) - Individual service documentation
 
@@ -47,6 +48,9 @@ ansible all -m ping
 ansible-playbook /root/update-hosts.yml
 ```
 
+### Add a New Service
+See the [Adding New Services Guide](services/adding-services.md) for step-by-step instructions.
+
 ## Emergency Contacts
 
 - **Primary Admin:** dp@getmassive.com.au
@@ -57,15 +61,16 @@ ansible-playbook /root/update-hosts.yml
 
 ```
 homelab-docs/
-├── README.md                 # This file
-├── INVENTORY.md             # Complete host inventory
-├── NETWORK.md               # Network documentation
-├── SERVICES.md              # Service catalog
+├── README.md                    # This file
+├── INVENTORY.md                 # Complete host inventory
+├── NETWORK.md                   # Network documentation
+├── SERVICES.md                  # Service catalog
 ├── ansible/
-│   └── README.md           # Ansible usage guide
+│   └── README.md               # Ansible usage guide
 └── services/
-    ├── traefik.md          # Traefik/reverse proxy
-    └── docker.md           # Docker infrastructure
+    ├── adding-services.md      # How to add new services
+    ├── docker.md               # Docker infrastructure
+    └── traefik.md              # Traefik/reverse proxy (TBD)
 ```
 
 ## Maintenance Schedule
@@ -80,3 +85,4 @@ homelab-docs/
 - Firewall runs OPNsense on FreeBSD 14.1
 - SSH key authentication configured for all hosts
 - Ansible manages infrastructure from 10.25.1.25
+- Split-brain DNS: Internal traffic bypasses Cloudflare Tunnel
