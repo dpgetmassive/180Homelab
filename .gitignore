@@ -1,0 +1,21 @@
+# Sensitive files
+*.key
+*.pem
+*_rsa
+*_ed25519
+authorized_keys
+secrets.yml
+passwords.txt
+
+# Ansible vault files
+*vault*
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
