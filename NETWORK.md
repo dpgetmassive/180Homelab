@@ -1,55 +1,47 @@
 # Network Documentation
 
-Network topology and configuration for the homelab infrastructure.
-
 **Last Updated:** 2025-11-09
 
-## Network Overview
+## Architecture: Cloudflare Tunnel (No Port Forwarding!)
 
-The homelab uses two main network segments with external access through Cloudflare and Traefik.
+External access uses **Cloudflare Tunnel** - completely secure, no ports open on firewall.
+
+### Traffic Flow
+```
+Internet → Cloudflare → Tunnel → cloudflared (10.25.1.19) → Traefik (10.25.1.12) → Services
+```
+
+### Components
+
+**Cloudflare Tunnel** (10.25.1.19 - rova-cloudflared)
+- Secure outbound tunnel to Cloudflare
+- No inbound ports required
+- DDoS protection included
+
+**Cloudflare DDNS** (10.25.1.12 - container)
+- Updates DNS: rova.getmassive.com.au → 159.196.118.71
+- Frequency: Every 300 seconds
+
+**Traefik** (10.25.1.12 - rova-docka)
+- SSL termination (Let's Encrypt wildcard cert)
+- Routes traffic based on hostname
 
 ## Network Segments
 
-### Management Network: 10.16.1.0/24
-- **Gateway:** 10.16.1.1 (OPNsense)
-- **Purpose:** Firewall management and administration
+- **Management:** 10.16.1.0/24 (Firewall at 10.16.1.1)
+- **Homelab:** 10.25.1.0/24 (All services)
 
-### Homelab Network: 10.25.1.0/24  
-- **Gateway:** 10.25.1.1
-- **DNS:** 10.25.1.15 (Pi-hole)
-- **Purpose:** All homelab services and containers
+## Published Services
 
-## Public Domain: *.rova.getmassive.com.au
+Via *.rova.getmassive.com.au through Cloudflare Tunnel:
+- proxmox1.rova, portainer.rova, plex.rova, sonar.rova, sabnzb.rova, cmk-mon.rova
 
-All services accessible via:
-1. **Cloudflare DNS** - Manages domain records
-2. **Cloudflare DDNS** (10.25.1.12) - Keeps IP updated
-3. **Traefik** (10.25.1.12:80/443) - Reverse proxy with SSL
-4. **Backend Services** - Routed based on hostname
+## Security Benefits
 
-### Published Services
-- traefik-dashboard.rova → Traefik dashboard
-- proxmox1.rova → Proxmox UI (10.25.1.5:8006)
-- sonar.rova → Sonarr (10.25.1.16:8989)
-- portainer.rova → Portainer (10.25.1.12:9443)
-- sabnzb.rova → SABnzbd (10.25.1.14:7777)
-- plex.rova → Plex (10.25.1.11:32400)
-- cmk-mon.rova → CheckMK (10.25.1.22)
+✅ No open ports on firewall  
+✅ No NAT required  
+✅ Outbound-only connections  
+✅ Cloudflare DDoS protection  
+✅ End-to-end SSL/TLS  
 
-## SSL/TLS Configuration
-
-- **Provider:** Let's Encrypt
-- **Certificate:** Wildcard for *.rova.getmassive.com.au
-- **Challenge Type:** DNS-01 via Cloudflare API
-- **Renewal:** Automatic via Traefik
-- **Storage:** /dockerland/traefik/acme.json
-
-## Port Forwarding
-
-External ports 80 and 443 forwarded to Traefik (10.25.1.12)
-
-## See Also
-
-- [INVENTORY.md](INVENTORY.md) - Complete host listing
-- [SERVICES.md](SERVICES.md) - Service catalog with URLs
-- [services/traefik.md](services/traefik.md) - Traefik configuration details
+See [INVENTORY.md](INVENTORY.md) and [SERVICES.md](SERVICES.md) for details.
