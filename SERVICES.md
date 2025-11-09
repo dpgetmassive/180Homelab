@@ -12,6 +12,7 @@ All services running in the homelab.
 - Plex: https://plex.rova.getmassive.com.au
 - SABnzbd: https://sabnzb.rova.getmassive.com.au
 - Sonarr: https://sonar.rova.getmassive.com.au
+- Radarr: https://radarr.rova.getmassive.com.au
 - CheckMK: https://cmk-mon.rova.getmassive.com.au/monitoring
 
 ## Internal Services
