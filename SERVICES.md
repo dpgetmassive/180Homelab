@@ -2,7 +2,7 @@
 
 All services running in the homelab.
 
-**Last Updated:** 2025-11-09
+**Last Updated:** 2025-11-10
 
 ## Public Services (via Traefik)
 
@@ -13,6 +13,7 @@ All services running in the homelab.
 - SABnzbd: https://sabnzb.rova.getmassive.com.au
 - Sonarr: https://sonar.rova.getmassive.com.au
 - Radarr: https://radarr.rova.getmassive.com.au
+- Beszel (Monitoring): https://beszel.rova.getmassive.com.au
 - CheckMK: https://cmk-mon.rova.getmassive.com.au/monitoring
 
 ## Internal Services
