@@ -1,6 +1,6 @@
 # Beszel Monitoring Setup Guide
 
-**Status**: SSH keys configured on all 17 hosts ✅
+**Status**: Binary agents installed on all 16 hosts ✅
 
 **Last Updated:** 2025-11-10
 
@@ -8,8 +8,10 @@
 
 ## What Was Done
 
-✅ **Beszel SSH key added to all hosts** - Beszel can now SSH to any host for monitoring
+✅ **Binary agents installed** on 15 hosts via Ansible (port 45876)
+✅ **Docker agent running** on rova-docka (already existed)
 ✅ **Traefik configured** - https://beszel.rova.getmassive.com.au
+✅ **All agents active** and listening
 ✅ **Documentation updated**
 
 ---
@@ -18,234 +20,234 @@
 
 **URL**: https://beszel.rova.getmassive.com.au
 
-(After you add the OPNsense DNS override for `beszel.rova`)
+(After you add the OPNsense DNS override for `beszel.rova` → `10.25.1.12`)
+
+---
+
+## Agent Architecture
+
+Beszel uses an **agent-based** monitoring system:
+
+- **Hub**: rova-beszel (10.25.1.20:8090) - Web UI and data collection
+- **Agents**: Installed on each monitored system (port 45876)
+- **Connection**: Hub pulls metrics from agents via authenticated connection
+- **Public Key**: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKbl/kDZ6u7AXNkS188DSTcJt0kvC7U1Dl37OXpgpo+n
 
 ---
 
 ## Add Systems to Beszel (Web UI)
 
-### Method: SSH-Based Monitoring (Recommended - No Agent Needed!)
-
-Beszel can monitor all your systems via SSH - no need to install agents. This is perfect for your lightweight setup.
-
 ### Step-by-Step for Each Host:
 
 1. **Log into Beszel**: https://beszel.rova.getmassive.com.au
-2. **Click "Add System"** or "+" button
-3. **Fill in details**:
-   - **Name**: (use hostname from list below)
-   - **Host**: (IP address from list below)
-   - **Port**: `22`
-   - **User**: `root`
-   - **Connection Type**: **SSH**
-
-4. **Authentication**:
-   - Beszel will use its SSH key (already added to authorized_keys)
-   - No password needed!
-
-5. **Click Save/Add**
+2. **Click "Add New System"**
+3. **Select "Binary" tab** (or "Docker" for rova-docka)
+4. **Fill in details**:
+   - **Name**: (hostname from list below)
+   - **Host/IP**: (IP address from list below)
+   - **Port**: `45876`
+   - **Public Key**: (auto-filled, matches the key above)
+5. **Click "Add system"**
 
 ---
 
-## Systems to Add (Priority Order)
+## Systems with Agents Installed (16 total)
 
-### Critical Infrastructure (Add These First)
+### Critical Infrastructure
 
 #### 1. Proxmox Host
 ```
 Name: pve-rover01
-Host: 10.25.1.5
-Port: 22
-User: root
-Connection: SSH
+Host/IP: 10.25.1.5
+Port: 45876
+Tab: Binary
 Priority: CRITICAL (hypervisor)
+Agent: ✅ Installed
 ```
 
 #### 2. Docker Host
 ```
 Name: rova-docka
-Host: 10.25.1.12
-Port: 22
-User: root
-Connection: SSH
+Host/IP: 10.25.1.12
+Port: 45876
+Tab: Docker (use Docker agent, not Binary)
 Priority: CRITICAL (Traefik + containers)
-Note: Already has Docker agent, but SSH works too
+Agent: ✅ Docker agent running
 ```
 
-#### 3. Firewall
-```
-Name: opnsense01
-Host: 10.16.1.1
-Port: 22
-User: root
-Connection: SSH
-Priority: CRITICAL (network gateway)
-```
-
-#### 4. DNS/Ad Blocking
+#### 3. DNS/Ad Blocking
 ```
 Name: rova-pihole
-Host: 10.25.1.15
-Port: 22
-User: root
-Connection: SSH
+Host/IP: 10.25.1.15
+Port: 45876
+Tab: Binary
 Priority: HIGH (DNS service)
+Agent: ✅ Installed
 ```
 
-#### 5. Cloudflare Tunnel
+#### 4. Cloudflare Tunnel
 ```
 Name: rova-cloudflared
-Host: 10.25.1.19
-Port: 22
-User: root
-Connection: SSH
+Host/IP: 10.25.1.19
+Port: 45876
+Tab: Binary
 Priority: HIGH (external access)
+Agent: ✅ Installed
 ```
 
 ### Media Services
 
-#### 6. Plex Media Server
+#### 5. Plex Media Server
 ```
 Name: rover-plexd
-Host: 10.25.1.11
-Port: 22
-User: root
-Connection: SSH
+Host/IP: 10.25.1.11
+Port: 45876
+Tab: Binary
+Agent: ✅ Installed
 ```
 
-#### 7. Sonarr (TV)
+#### 6. Sonarr (TV)
 ```
 Name: rova-sonarr
-Host: 10.25.1.16
-Port: 22
-User: root
-Connection: SSH
+Host/IP: 10.25.1.16
+Port: 45876
+Tab: Binary
+Agent: ✅ Installed
 ```
 
-#### 8. Radarr (Movies)
+#### 7. Radarr (Movies)
 ```
 Name: rova-radarr
-Host: 10.25.1.24
-Port: 22
-User: root
-Connection: SSH
+Host/IP: 10.25.1.24
+Port: 45876
+Tab: Binary
+Agent: ✅ Installed
 ```
 
-#### 9. SABnzbd (Downloads)
+#### 8. SABnzbd (Primary)
 ```
 Name: rova-sabnzbd
-Host: 10.25.1.14
-Port: 22
-User: root
-Connection: SSH
+Host/IP: 10.25.1.14
+Port: 45876
+Tab: Binary
+Agent: ✅ Installed
 ```
 
-#### 10. SABnzbd Old
+#### 9. SABnzbd (Old)
 ```
 Name: rover-sabnzbd-old
-Host: 10.25.1.53
-Port: 22
-User: root
-Connection: SSH
-Note: Old instance, lower priority
+Host/IP: 10.25.1.53
+Port: 45876
+Tab: Binary
+Agent: ✅ Installed
 ```
 
-#### 11. Transmission (Torrents)
+#### 10. Transmission (Torrents)
 ```
 Name: rova-transmission
-Host: 10.25.1.13
-Port: 22
-User: root
-Connection: SSH
+Host/IP: 10.25.1.13
+Port: 45876
+Tab: Binary
+Agent: ✅ Installed
 ```
 
-#### 12. Filerr (File Management)
+#### 11. Filerr (File Management)
 ```
 Name: rova-filerr
-Host: 10.25.1.10
-Port: 22
-User: root
-Connection: SSH
+Host/IP: 10.25.1.10
+Port: 45876
+Tab: Binary
+Agent: ✅ Installed
 ```
 
 ### Monitoring & Utilities
 
-#### 13. CheckMK (Existing Monitoring)
+#### 12. CheckMK (Monitoring)
 ```
 Name: rova-checkmk
-Host: 10.25.1.22
-Port: 22
-User: root
-Connection: SSH
-Note: Monitor the monitor!
+Host/IP: 10.25.1.22
+Port: 45876
+Tab: Binary
+Agent: ✅ Installed
 ```
 
-#### 14. Beszel Hub (Self-Monitoring)
+#### 13. Beszel Hub (Self-Monitoring)
 ```
 Name: rova-beszel
-Host: 10.25.1.20
-Port: 22
-User: root
-Connection: SSH
-Note: Monitor itself for meta-monitoring
+Host/IP: 10.25.1.20
+Port: 45876
+Tab: Binary
+Note: Monitor the monitor!
+Agent: ✅ Installed
 ```
 
-#### 15. Glance Dashboard
+#### 14. Glance Dashboard
 ```
 Name: rova-glance
-Host: 10.25.1.23
-Port: 22
-User: root
-Connection: SSH
+Host/IP: 10.25.1.23
+Port: 45876
+Tab: Binary
+Agent: ✅ Installed
 ```
 
-#### 16. VS Code Server
+#### 15. VS Code Server
 ```
 Name: rova-vscode-srv
-Host: 10.25.1.21
-Port: 22
-User: root
-Connection: SSH
+Host/IP: 10.25.1.21
+Port: 45876
+Tab: Binary
+Agent: ✅ Installed
 ```
 
-#### 17. Tailscale VPN
+#### 16. Tailscale VPN
 ```
 Name: rova-tailscale
-Host: 10.25.1.18
-Port: 22
-User: root
-Connection: SSH
+Host/IP: 10.25.1.18
+Port: 45876
+Tab: Binary
+Agent: ✅ Installed
 ```
 
 ---
 
-## Quick Add Script (All Hosts)
+## Systems NOT Monitored
 
-You can copy/paste these into Beszel's bulk add feature (if available):
+- **ansible** (10.25.1.25) - Ansible control node, skip monitoring
+- **opnsense01** (10.16.1.1) - FreeBSD, agent install failed (systemd incompatible)
 
-```csv
-pve-rover01,10.25.1.5,22,root,ssh
-rova-docka,10.25.1.12,22,root,ssh
-opnsense01,10.16.1.1,22,root,ssh
-rova-pihole,10.25.1.15,22,root,ssh
-rova-cloudflared,10.25.1.19,22,root,ssh
-rover-plexd,10.25.1.11,22,root,ssh
-rova-sonarr,10.25.1.16,22,root,ssh
-rova-radarr,10.25.1.24,22,root,ssh
-rova-sabnzbd,10.25.1.14,22,root,ssh
-rover-sabnzbd-old,10.25.1.53,22,root,ssh
-rova-transmission,10.25.1.13,22,root,ssh
-rova-filerr,10.25.1.10,22,root,ssh
-rova-checkmk,10.25.1.22,22,root,ssh
-rova-beszel,10.25.1.20,22,root,ssh
-rova-glance,10.25.1.23,22,root,ssh
-rova-vscode-srv,10.25.1.21,22,root,ssh
-rova-tailscale,10.25.1.18,22,root,ssh
+---
+
+## Agent Management
+
+### Check Agent Status on Any Host
+
+```bash
+ssh <hostname> systemctl status beszel-agent
+```
+
+### Restart Agent
+
+```bash
+ssh <hostname> systemctl restart beszel-agent
+```
+
+### View Agent Logs
+
+```bash
+ssh <hostname> journalctl -u beszel-agent -f
+```
+
+### Verify Agent Listening
+
+```bash
+ssh <hostname> ss -tlnp | grep 45876
 ```
 
 ---
 
-## Configure Data Retention
+## Configure Beszel Settings
+
+### Set Data Retention
 
 After adding systems:
 
@@ -254,118 +256,163 @@ After adding systems:
 3. Set to **7 days** (or your preferred duration)
 4. Click **Save**
 
+### Recommended Alerts
+
+Set up alerts for:
+
+**Critical Systems:**
+- **pve-rover01**: CPU > 85%, Memory > 90%
+- **rova-docka**: Disk > 85%, Memory > 85%
+- **rova-pihole**: Service down alert
+
+**Media Services:**
+- **rover-plexd**: CPU > 90% (transcoding)
+- **rova-sabnzbd**: Disk > 90% (download space)
+
 ---
 
 ## What Metrics You'll See
 
-For each system via SSH monitoring, Beszel will show:
+For each system, Beszel displays:
 
-- **CPU Usage** - Overall and per-core
+- **CPU Usage** - Overall and per-core percentage
 - **Memory Usage** - Used vs available RAM
 - **Disk Usage** - All mounted filesystems
 - **Network I/O** - Bandwidth in/out
-- **System Load** - Load average
+- **System Load** - Load average (1/5/15 min)
 - **Uptime** - System uptime
-- **Process Count** - Running processes
+- **Temperatures** - CPU/system temps (if available)
 
-For rova-docka (Docker host), you'll also see:
-- **Container Stats** - If Docker agent is running
-- **Container Status** - Running/stopped containers
-
----
-
-## Advantages of SSH-Based Monitoring
-
-✅ **No agent installation needed** - One less thing to manage
-✅ **Lighter weight** - No agent process running
-✅ **Easier maintenance** - No agents to update
-✅ **Still gets all metrics** - Full system monitoring
-✅ **Secure** - Uses SSH key authentication
-
-The only downside: Slightly higher CPU on Beszel hub during polls (negligible).
-
----
-
-## Alternative: Docker Agent (Optional)
-
-If you want even more detailed metrics on rova-docka, the Docker agent is already running!
-
-To see Docker-specific metrics in Beszel:
-1. Add system as Docker agent type instead of SSH
-2. Use connection string from Docker agent logs
-
-But honestly, SSH monitoring is probably sufficient for your needs.
-
----
-
-## Monitoring Dashboard Tips
-
-### Useful Views:
-
-1. **Overview Dashboard** - See all systems at a glance
-2. **Alerts** - Set thresholds:
-   - CPU > 80%
-   - Memory > 85%
-   - Disk > 90%
-3. **Graphs** - Historical data for trending
-
-### Recommended Alerts:
-
-- **Proxmox (pve-rover01)**: CPU > 85%, Memory > 90%
-- **Docker Host (rova-docka)**: Disk > 85% (Traefik logs can fill up)
-- **Plex (rover-plexd)**: CPU > 90% (transcoding spikes)
-- **SABnzbd (rova-sabnzbd)**: Disk > 90% (download space)
+For **rova-docka** (Docker agent):
+- **Container Stats** - CPU/memory per container
+- **Container Status** - Running/stopped/health
 
 ---
 
 ## Troubleshooting
 
-### System Won't Connect
+### Agent Not Connecting
 
-**Check SSH from Beszel host**:
+**Check agent is running:**
 ```bash
-ssh root@10.25.1.25
-ssh 10.25.1.20
-ssh -i /opt/beszel/beszel_data/id_ed25519 root@<host-ip>
+ssh <hostname> systemctl status beszel-agent
 ```
 
-Should connect without password.
+**Check agent is listening:**
+```bash
+ssh <hostname> ss -tlnp | grep 45876
+```
 
-### Metrics Not Updating
+**Check agent logs:**
+```bash
+ssh <hostname> journalctl -u beszel-agent -n 50
+```
 
-- Check system is online: `ping <host-ip>`
-- Verify SSH access works
-- Check Beszel hub logs: `ssh 10.25.1.20 'journalctl -u beszel -f'`
+### Wrong Public Key Error
 
-### Missing Metrics
+If Beszel UI shows public key mismatch:
 
-SSH monitoring provides standard metrics. For advanced metrics:
-- Install Beszel agent binary
-- Or use CheckMK for deeper monitoring
+1. Get the correct key from Beszel hub:
+   ```bash
+   ssh 10.25.1.20 cat /opt/beszel/beszel_data/id_ed25519.pub
+   ```
+
+2. Reinstall agent with correct key (if needed)
+
+### Port Already in Use
+
+If port 45876 is taken, you can change it:
+
+1. Edit systemd service:
+   ```bash
+   ssh <hostname> systemctl edit beszel-agent
+   ```
+
+2. Add:
+   ```
+   [Service]
+   Environment="PORT=<new-port>"
+   ```
+
+3. Restart agent and update in Beszel UI
 
 ---
 
-## Next Steps
+## Agent Installation Details
 
-1. ✅ Add OPNsense DNS override for `beszel.rova` → `10.25.1.12`
-2. ✅ Access Beszel UI: https://beszel.rova.getmassive.com.au
-3. ✅ Add all 17 systems using SSH monitoring (use list above)
-4. ✅ Configure 7-day retention
-5. ✅ Set up alerts for critical systems
-6. ✅ (Optional) Remove CheckMK to free 500MB+ RAM
+### What the Install Script Did
+
+1. Created dedicated `beszel` user
+2. Downloaded binary to `/usr/local/bin/beszel-agent`
+3. Created systemd service at `/etc/systemd/system/beszel-agent.service`
+4. Configured agent with public key authentication
+5. Started and enabled service
+
+### Agent Version
+
+Check version:
+```bash
+ssh <hostname> /usr/local/bin/beszel-agent --version
+```
+
+Current version: **0.15.4**
+
+### Agent Updates
+
+Agents can auto-update if enabled during installation. To manually update:
+
+```bash
+ssh <hostname>
+curl -sL https://raw.githubusercontent.com/henrygd/beszel/main/supplemental/scripts/install-agent.sh -o /tmp/update-agent.sh
+chmod +x /tmp/update-agent.sh
+/tmp/update-agent.sh
+```
+
+---
+
+## Resource Usage
+
+### Agent Overhead (Per Host)
+
+- **Memory**: ~5-10 MB per agent
+- **CPU**: < 1% (only during metric collection)
+- **Disk**: ~20 MB (binary + logs)
+- **Network**: Minimal (only when hub polls)
+
+### Total Infrastructure
+
+- **Beszel Hub**: ~10-15 MB RAM
+- **16 Agents**: ~80-160 MB RAM total
+- **Total**: ~100-175 MB RAM for entire monitoring system
+
+Compare to CheckMK: ~500-1000 MB RAM (savings: 75-90%)
+
+---
+
+## Related Documentation
+
+- [Monitoring Recommendation](monitoring-recommendation.md) - Why Beszel was chosen
+- [Quick Add Systems Guide](beszel-add-systems.md) - Simplified copy/paste format
+- [Beszel Hosts CSV](beszel-hosts.csv) - All hosts in CSV format
+- [Official Beszel Docs](https://beszel.dev/guide/agent-installation)
 
 ---
 
 ## Time Estimate
 
-- Adding all 17 systems: ~10-15 minutes
-- Configuring alerts: ~5 minutes
-- **Total**: ~20 minutes
-
-Enjoy your lightweight monitoring! 🎉
+- **Adding all 16 systems**: ~10-15 minutes
+- **Configuring alerts**: ~5 minutes
+- **Setting retention**: ~1 minute
+- **Total**: ~15-20 minutes
 
 ---
 
-## Documentation Location
+## Summary
 
-This guide: `/root/homelab-docs/operations/beszel-setup-guide.md`
+✅ **16 systems ready** to add in Beszel UI
+✅ **All agents installed** and running on port 45876
+✅ **Lightweight** - only ~100-175 MB RAM total
+✅ **Secure** - public key authentication
+✅ **Automatic** - systemd services, auto-restart
+
+Just add them in the UI and you're monitoring! 🎉
