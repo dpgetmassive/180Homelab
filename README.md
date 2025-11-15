@@ -46,6 +46,11 @@ This repository documents the complete consolidation of a 3-node Proxmox homelab
 - **[TRUENAS_REPLICATION_ANALYSIS.md](TRUENAS_REPLICATION_ANALYSIS.md)** - ZFS replication assessment
 - **[CLAUDE_CODE_MEMORY.md](CLAUDE_CODE_MEMORY.md)** - Session context and continuity
 
+### Service Optimization (Nov 2025)
+
+- **[SONARR_OPTIMIZATION.md](SONARR_OPTIMIZATION.md)** - Quality limits and size optimization
+- **[DOCKER_UPDATES_2025-11-15.md](DOCKER_UPDATES_2025-11-15.md)** - Container updates and Watchtower fix
+
 ---
 
 ## Key Features Implemented
