@@ -13,7 +13,7 @@ The `proxmox-backup-orchestration.sh` script coordinates all backup operations i
 **Log File**: `/var/log/proxmox-backup-orchestration.log`
 **Runs On**: pve-scratchy (10.16.1.22)
 **Schedule**: Daily at 2:00 AM
-**Version**: 2.2
+**Version**: 2.4
 
 ## Execution Timeline
 
@@ -50,10 +50,10 @@ The `proxmox-backup-orchestration.sh` script coordinates all backup operations i
 
 ```bash
 LOG_FILE="/var/log/proxmox-backup-orchestration.log"
-ITCHY_MAC="60:45:cb:69:85:83"                    # For WOL (disabled)
 ITCHY_IP="10.16.1.8"
 TRUENAS_DR_IP="10.16.1.20"
 TRUENAS_PRIMARY_IP="10.16.1.6"
+TRUENAS_PRIMARY_PASSWORD="Getmassiv3"             # For API authentication
 MAX_WAIT=300                                       # 5 minutes timeout
 CONFIG_BACKUP_DIR="/mnt/pve/pve-bk-truenas-primary/truenas-configs"
 REPLICATION_NAME="FileServer-to-DR"                # ZFS replication task name
@@ -69,28 +69,59 @@ log() {
 
 All script output is timestamped and written to both console and log file.
 
-### TrueNAS Configuration Backup Function
+### TrueNAS Configuration Backup Functions
+
+**Two methods available** depending on SSH access:
+
+#### API-Based Backup (Primary TrueNAS)
 
 ```bash
-backup_truenas_config() {
+backup_truenas_config_api() {
     local TRUENAS_IP=$1
     local NAME=$2
+    local PASSWORD=$3
     local DATE=$(date +%Y%m%d-%H%M%S)
-    local TEMP_FILE="/tmp/${NAME}-config-${DATE}.db"
+    local DEST_FILE="${NAME}-config-${DATE}.db"
 
     # Create backup directory
-    # Download SQLite config database
-    # Verify file is valid SQLite
-    # Copy to pve-bk-truenas-primary
+    # Download via TrueNAS REST API: /api/v2.0/config/save
+    # Use curl with basic authentication
+    # Verify file is valid SQLite database
     # Clean up old backups (>14 days)
 }
 ```
 
-**Purpose**: Export TrueNAS configuration database for disaster recovery
-**Retention**: 14 days
-**Output**: `truenas-{primary|dr}-config-YYYYMMDD-HHMMSS.db`
+**When to use**: Primary TrueNAS (10.16.1.6) - SSH not configured
+**Method**: curl to `https://10.16.1.6/api/v2.0/config/save`
+**Authentication**: Basic auth with root credentials
+**Output size**: ~796KB
 
-**Known Issue**: Primary TrueNAS backup currently failing (SQLite method incompatible with TrueNAS Scale)
+#### SSH-Based Backup (DR TrueNAS)
+
+```bash
+backup_truenas_config_ssh() {
+    local TRUENAS_IP=$1
+    local NAME=$2
+    local DATE=$(date +%Y%m%d-%H%M%S)
+    local REMOTE_FILE="/data/freenas-v1.db"
+    local DEST_FILE="${NAME}-config-${DATE}.db"
+
+    # Create backup directory
+    # Copy database via SSH: cat /data/freenas-v1.db
+    # Verify file is valid SQLite database
+    # Clean up old backups (>14 days)
+}
+```
+
+**When to use**: DR TrueNAS (10.16.1.20) - SSH configured
+**Method**: SSH cat of `/data/freenas-v1.db`
+**Output size**: ~784KB
+
+**Common attributes**:
+- **Purpose**: Export TrueNAS configuration database for disaster recovery
+- **Retention**: 14 days
+- **Output**: `truenas-{primary|dr}-config-YYYYMMDD-HHMMSS.db`
+- **Validation**: All backups verified as valid SQLite 3.x databases
 
 ## Step-by-Step Workflow
 

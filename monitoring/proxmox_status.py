@@ -598,6 +598,141 @@ HTML_TEMPLATE = '''
             0%, 100% { color: #f85149; }
             50% { color: #ff0000; opacity: 0.7; }
         }
+
+        /* Mobile Responsive Styles */
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
+            .header h1 {
+                font-size: 1.1em;
+            }
+
+            .ascii-banner {
+                font-size: 6px;
+                padding: 10px;
+                overflow-x: auto;
+            }
+
+            .header-info {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+
+            .quick-stats {
+                flex-wrap: wrap;
+                gap: 15px;
+                padding: 15px;
+                justify-content: space-around;
+            }
+
+            .stat-item {
+                flex: 1 1 45%;
+                min-width: 120px;
+            }
+
+            .stat-value {
+                font-size: 1.5em;
+            }
+
+            .node-grid {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+
+            .node-name {
+                font-size: 1.2em;
+            }
+
+            .node-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+
+            .gauges-section {
+                margin-bottom: 15px;
+            }
+
+            .metric-row {
+                font-size: 0.9em;
+            }
+
+            .top-consumer {
+                font-size: 0.8em;
+            }
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 5px;
+            }
+
+            .header h1 {
+                font-size: 1em;
+            }
+
+            .ascii-banner {
+                font-size: 5px;
+                padding: 8px;
+            }
+
+            .quick-stats {
+                flex-direction: column;
+                gap: 10px;
+                padding: 10px;
+            }
+
+            .stat-item {
+                flex: 1 1 100%;
+                text-align: left;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 8px;
+                background: #0d1117;
+                border-radius: 4px;
+            }
+
+            .stat-label {
+                font-size: 0.85em;
+                margin-bottom: 0;
+            }
+
+            .stat-value {
+                font-size: 1.3em;
+            }
+
+            .node-card {
+                padding: 15px;
+            }
+
+            .node-name {
+                font-size: 1.1em;
+            }
+
+            .metric-row {
+                flex-direction: column;
+                gap: 5px;
+                align-items: flex-start;
+            }
+
+            .metric-label,
+            .metric-value {
+                font-size: 0.85em;
+            }
+
+            .gauge-label {
+                font-size: 0.85em;
+            }
+
+            .top-consumer {
+                font-size: 0.75em;
+                padding: 8px;
+            }
+        }
     </style>
 </head>
 <body>

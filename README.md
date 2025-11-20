@@ -160,6 +160,12 @@ pve-itchy (10.16.1.8):
 
 ## Recent Updates
 
+### 2025-11-20: TrueNAS Config Backup Fix (v2.4)
+- Fixed Primary TrueNAS config backup using REST API instead of SSH
+- Added `backup_truenas_config_api()` function using curl to `/api/v2.0/config/save`
+- SSH method still used for DR TrueNAS where it's configured
+- Primary config backups now successfully captured (796KB SQLite database)
+
 ### 2025-11-20: Backup Script Fix (v2.3)
 - Fixed storage verification logic (SSH remote → local check)
 - Corrected NFS mount configuration
@@ -175,7 +181,6 @@ pve-itchy (10.16.1.8):
 ## Pending Tasks
 
 - [ ] Add Backblaze CloudSync job status to monitoring dashboard
-- [ ] Fix Primary TrueNAS config backup method
 - [ ] Implement "Last Successful Backup" timestamp with 24-hour alert
 - [ ] Add Grafana integration for historical metrics
 
