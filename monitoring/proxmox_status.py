@@ -638,6 +638,14 @@ HTML_TEMPLATE = '''
                 <div class="stat-label">Last Backup</div>
                 <div class="stat-value" id="stat-backup" style="font-size: 0.8em;">-</div>
             </div>
+            <div class="stat-item">
+                <div class="stat-label">ZFS Replication</div>
+                <div class="stat-value" id="stat-replication" style="font-size: 0.8em;">-</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">CloudSync</div>
+                <div class="stat-value" id="stat-cloudsync" style="font-size: 0.8em;">-</div>
+            </div>
         </div>
         
         <div class="node-grid" id="nodes-container">
@@ -657,7 +665,14 @@ HTML_TEMPLATE = '''
                 <div class="loading">Loading replication status...</div>
             </div>
         </div>
-        
+
+        <div class="replication-section">
+            <h2>☁️ Backblaze CloudSync Status</h2>
+            <div class="replication-grid" id="cloudsync-container">
+                <div class="loading">Loading CloudSync status...</div>
+            </div>
+        </div>
+
         <div class="refresh-info">
             Auto-refreshing every 30 seconds
         </div>
@@ -736,6 +751,58 @@ HTML_TEMPLATE = '''
                     backupElement.textContent = 'Never';
                     backupElement.classList.add('backup-stale');
                     backupElement.classList.remove('up');
+                }
+
+                // Update ZFS Replication status
+                const replicationElement = document.getElementById('stat-replication');
+                if (data.replication && data.replication.length > 0) {
+                    const latestRepl = data.replication[0];
+                    if (latestRepl.state === 'FINISHED') {
+                        replicationElement.textContent = latestRepl.last_run ? formatTimeAgo(new Date(latestRepl.last_run).getTime() / 1000) : 'Success';
+                        replicationElement.classList.add('up');
+                        replicationElement.classList.remove('backup-stale', 'down', 'warning');
+                    } else if (latestRepl.state === 'RUNNING') {
+                        replicationElement.textContent = 'Running...';
+                        replicationElement.classList.add('warning');
+                        replicationElement.classList.remove('up', 'down', 'backup-stale');
+                    } else if (latestRepl.state === 'ERROR') {
+                        replicationElement.textContent = 'Error';
+                        replicationElement.classList.add('down');
+                        replicationElement.classList.remove('up', 'backup-stale', 'warning');
+                    } else {
+                        replicationElement.textContent = latestRepl.last_run ? formatTimeAgo(new Date(latestRepl.last_run).getTime() / 1000) : 'Idle';
+                        replicationElement.classList.add('up');
+                        replicationElement.classList.remove('down', 'backup-stale', 'warning');
+                    }
+                } else {
+                    replicationElement.textContent = 'N/A';
+                    replicationElement.classList.remove('up', 'down', 'backup-stale', 'warning');
+                }
+
+                // Update CloudSync status
+                const cloudsyncElement = document.getElementById('stat-cloudsync');
+                if (data.cloudsync && data.cloudsync.length > 0) {
+                    const latestSync = data.cloudsync[0];
+                    if (latestSync.state === 'SUCCESS') {
+                        cloudsyncElement.textContent = latestSync.last_run ? formatTimeAgo(new Date(latestSync.last_run).getTime() / 1000) : 'Success';
+                        cloudsyncElement.classList.add('up');
+                        cloudsyncElement.classList.remove('backup-stale', 'down');
+                    } else if (latestSync.state === 'RUNNING' || latestSync.state === 'WAITING') {
+                        cloudsyncElement.textContent = 'Running...';
+                        cloudsyncElement.classList.add('warning');
+                        cloudsyncElement.classList.remove('up', 'down', 'backup-stale');
+                    } else if (latestSync.state === 'ERROR' || latestSync.state === 'FAILED') {
+                        cloudsyncElement.textContent = 'Error';
+                        cloudsyncElement.classList.add('down');
+                        cloudsyncElement.classList.remove('up', 'backup-stale');
+                    } else {
+                        cloudsyncElement.textContent = latestSync.last_run ? formatTimeAgo(new Date(latestSync.last_run).getTime() / 1000) : 'Idle';
+                        cloudsyncElement.classList.add('up');
+                        cloudsyncElement.classList.remove('down', 'backup-stale');
+                    }
+                } else {
+                    cloudsyncElement.textContent = 'N/A';
+                    cloudsyncElement.classList.remove('up', 'down', 'backup-stale');
                 }
 
                 // Update nodes
@@ -932,7 +999,46 @@ HTML_TEMPLATE = '''
                     }).join('');
                     document.getElementById('replication-container').innerHTML = replHTML;
                 }
-                
+
+                // Update CloudSync status
+                if (!data.cloudsync || data.cloudsync.length === 0) {
+                    document.getElementById('cloudsync-container').innerHTML =
+                        '<div class="loading" style="color: #f85149;">Failed to load CloudSync status from TrueNAS</div>';
+                } else if (data.cloudsync) {
+                    const cloudHTML = data.cloudsync.map(sync => {
+                        let statusClass = 'success';
+                        let statusText = 'SUCCESS';
+
+                        if (sync.state === 'ERROR' || sync.state === 'FAILED') {
+                            statusClass = 'error';
+                            statusText = 'ERROR';
+                        } else if (sync.state === 'RUNNING') {
+                            statusClass = 'running';
+                            statusText = 'RUNNING';
+                        } else if (sync.state === 'WAITING') {
+                            statusClass = 'running';
+                            statusText = 'WAITING';
+                        }
+
+                        return `
+                            <div class="replication-item ${statusClass}">
+                                <div class="replication-header">
+                                    <div class="replication-name">${sync.name}</div>
+                                    <div class="replication-status ${statusClass}">${statusText}</div>
+                                </div>
+                                <div class="replication-details">
+                                    <div><strong>Source:</strong> ${sync.path}</div>
+                                    <div><strong>Destination:</strong> Backblaze B2 (${sync.bucket})</div>
+                                    ${sync.last_run ? `<div><strong>Last Run:</strong> ${sync.last_run}</div>` : ''}
+                                    ${sync.progress ? `<div><strong>Progress:</strong> ${sync.progress}</div>` : ''}
+                                    ${sync.error ? `<div style="color: #dc2626;"><strong>Error:</strong> ${sync.error}</div>` : ''}
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                    document.getElementById('cloudsync-container').innerHTML = cloudHTML;
+                }
+
                 document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
                 
             } catch (error) {
@@ -1064,6 +1170,68 @@ def get_replication_status():
         return replication_status
     except Exception as e:
         print(f"Error getting replication status: {e}")
+        return []
+
+def get_cloudsync_status():
+    """Get Backblaze CloudSync status from TrueNAS Primary"""
+    try:
+        result = run_ssh_command(
+            TRUENAS_PRIMARY,
+            'midclt call cloudsync.query'
+        )
+
+        if result == 'N/A':
+            return []
+
+        cloudsync_data = json.loads(result)
+        cloudsync_status = []
+
+        for task in cloudsync_data:
+            # Only include enabled tasks
+            if not task.get('enabled'):
+                continue
+
+            status = {
+                'name': task.get('description', 'Unknown'),
+                'path': task.get('path', 'N/A'),
+                'bucket': task.get('attributes', {}).get('bucket', 'N/A'),
+                'direction': task.get('direction', 'PUSH'),
+                'state': 'IDLE',
+                'last_run': None,
+                'transfers': None,
+                'progress': None,
+                'error': None
+            }
+
+            # Get job information if available
+            if task.get('job'):
+                job = task['job']
+                status['state'] = job.get('state', 'UNKNOWN')
+                status['error'] = job.get('error')
+
+                # Get progress info
+                if job.get('progress'):
+                    prog = job['progress']
+                    status['progress'] = prog.get('description')
+                    status['transfers'] = prog.get('percent')
+
+                # Format last run time
+                if job.get('time_finished'):
+                    timestamp = job['time_finished'].get('$date')
+                    if timestamp:
+                        dt = datetime.fromtimestamp(timestamp / 1000)
+                        status['last_run'] = dt.strftime('%Y-%m-%d %H:%M:%S')
+                elif job.get('time_started'):
+                    timestamp = job['time_started'].get('$date')
+                    if timestamp:
+                        dt = datetime.fromtimestamp(timestamp / 1000)
+                        status['last_run'] = dt.strftime('%Y-%m-%d %H:%M:%S')
+
+            cloudsync_status.append(status)
+
+        return cloudsync_status
+    except Exception as e:
+        print(f"Error getting CloudSync status: {e}")
         return []
 
 def fetch_ntfy_notifications():
@@ -1264,6 +1432,7 @@ def api_status():
         'nodes': {},
         'notifications': fetch_ntfy_notifications(),
         'replication': get_replication_status(),
+        'cloudsync': get_cloudsync_status(),
         'last_backup': last_backup.isoformat() if last_backup else None,
         'backup_age_hours': backup_age_hours
     }
