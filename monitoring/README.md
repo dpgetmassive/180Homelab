@@ -6,15 +6,17 @@ Real-time monitoring dashboard for 180 Homelab Proxmox infrastructure.
 
 Web-based monitoring dashboard providing comprehensive visibility into Proxmox cluster health, VM/CT status, resource utilization, and backup operations.
 
-**Access**: http://localhost:81 (or http://10.16.1.22:81 from network)
+**Production Access**: http://10.16.1.18:81 (n100uck)
+**Development Access**: http://localhost:81
 
 ## Features
 
 ### Cluster Overview
+- **Cluster Quorum**: Real-time corosync quorum status with node count and voting information
 - **Node Status**: Real-time availability and health for pve-scratchy and pve-itchy
 - **Resource Gauges**: CPU load, memory usage, and storage capacity with color-coded alerts
 - **Top CPU Consumer**: Identifies VMs/CTs consuming most CPU resources
-- **System Metrics**: Workload counts, hardware specs, pending updates, uptime, cluster status
+- **System Metrics**: Workload counts, hardware specs, pending updates, uptime
 
 ### Metrics Display
 
@@ -24,7 +26,6 @@ Each Proxmox node shows detailed metrics in priority order:
 2. **Hardware**: CPU cores, RAM, and available storage ("X cores | XGB RAM | XXG free")
 3. **Updates**: Total and security updates available ("X total (X security)")
 4. **Uptime**: System uptime in human-readable format
-5. **Cluster Status**: Quorum information and cluster health
 
 ### Alerts and Notifications
 
@@ -118,7 +119,73 @@ Flask==3.0.0
 requests==2.31.0
 ```
 
-## Installation
+## Production Deployment
+
+The monitoring dashboard is deployed on **n100uck** (10.16.1.18) - a dedicated Debian 12 host for infrastructure monitoring.
+
+### Installation on n100uck
+
+```bash
+# Install Python dependencies
+apt update && apt install -y python3-pip python3-venv
+
+# Create monitoring directory
+mkdir -p /opt/proxmox-monitoring
+cd /opt/proxmox-monitoring
+
+# Copy files (from development machine)
+scp proxmox_status.py requirements.txt root@10.16.1.18:/opt/proxmox-monitoring/
+
+# Setup virtual environment
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+# Configure SSH access to Proxmox nodes
+ssh-keyscan -H 10.16.1.22 10.16.1.8 10.16.1.6 >> ~/.ssh/known_hosts
+
+# Copy SSH public key to all monitored hosts
+cat ~/.ssh/id_rsa.pub | ssh root@10.16.1.22 "cat >> ~/.ssh/authorized_keys"
+cat ~/.ssh/id_rsa.pub | ssh root@10.16.1.8 "cat >> ~/.ssh/authorized_keys"
+cat ~/.ssh/id_rsa.pub | ssh root@10.16.1.6 "cat >> ~/.ssh/authorized_keys"
+
+# Create SSH config for aliases
+cat > ~/.ssh/config <<'EOF'
+Host scratchy
+    HostName 10.16.1.22
+    User root
+    IdentityFile ~/.ssh/id_rsa
+
+Host itchy
+    HostName 10.16.1.8
+    User root
+    IdentityFile ~/.ssh/id_rsa
+EOF
+chmod 600 ~/.ssh/config
+
+# Start monitoring service
+nohup python3 proxmox_status.py > /var/log/proxmox-monitoring.log 2>&1 &
+```
+
+**Access**: http://10.16.1.18:81
+
+### Service Management
+
+```bash
+# Check if running
+lsof -ti:81
+
+# View logs
+tail -f /var/log/proxmox-monitoring.log
+
+# Restart service
+lsof -ti:81 | xargs kill -9
+cd /opt/proxmox-monitoring && source venv/bin/activate && nohup python3 proxmox_status.py > /var/log/proxmox-monitoring.log 2>&1 &
+```
+
+## Development Installation
+
+For local development:
 
 ```bash
 cd /Users/dp/developerland/homelab/monitoring
@@ -331,6 +398,25 @@ ssh root@10.16.1.6 "midclt call replication.query"
 ```
 
 ## Recent Changes
+
+### 2025-11-20: Production Deployment
+- Deployed monitoring dashboard on n100uck (10.16.1.18)
+- Configured passwordless SSH access from n100uck to all monitored hosts
+- Service running on dedicated Debian 12 host for 24/7 availability
+- Dashboard accessible at http://10.16.1.18:81
+
+### 2025-11-20: Cluster Quorum Monitoring
+- Added cluster quorum status to top stats row
+- Displays node count and voting information (e.g., "2 nodes (3/3 votes)")
+- Queries corosync via `pvecm status` command
+- Shows green when quorate, red when inquorate
+- Removed redundant "Cluster Status" from individual node cards
+
+### 2025-11-20: CloudSync Integration
+- Added Backblaze B2 CloudSync status monitoring
+- Displays CloudSync job state, progress, and last run time
+- Monitors offsite backup to Backblaze B2
+- Top stats row shows CloudSync summary alongside ZFS replication
 
 ### 2025-11-20: Metrics Order Fix
 - Fixed metrics display order issue where Workloads appeared at bottom
