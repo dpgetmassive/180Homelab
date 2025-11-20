@@ -189,6 +189,113 @@ Use Pi-hole's built-in Teleporter feature for manual backup/restore:
 2. Settings → Teleporter → Generate backup
 3. Apply backup to secondary via web UI
 
+## Automated DNS Sync
+
+Custom local DNS records (`.gmdojo.tech` domains) automatically sync from primary to secondary every hour.
+
+### Configuration
+
+**Script**: `/root/sync-pihole-dns.sh` on primary
+**Schedule**: Hourly via cron (`0 * * * *`)
+**Syncs**: Custom DNS records in `/etc/pihole/pihole.toml`
+**Notifications**: ntfy alerts on failure/recovery
+
+### Local DNS Records
+
+All records point to **10.16.1.50**:
+- pve.gmdojo.tech
+- uptime.gmdojo.tech
+- grafana.gmdojo.tech
+- nas.gmdojo.tech
+- pihole.gmdojo.tech
+- home.gmdojo.tech
+- status.gmdojo.tech
+- npm.gmdojo.tech
+- plex.gmdojo.tech
+- firewall-node1.gmdojo.tech
+- unifi.gmdojo.tech
+- really.gmdojo.tech
+
+### Adding/Modifying DNS Records
+
+1. **Edit on primary only**:
+   ```bash
+   ssh pihole-primary
+   nano /etc/pihole/pihole.toml
+   # Edit [dns] section -> hosts = []
+   systemctl restart pihole-FTL
+   ```
+
+2. **Manual sync** (optional, otherwise waits for hourly cron):
+   ```bash
+   ssh pihole-primary '/root/sync-pihole-dns.sh'
+   ```
+
+3. **Check sync status**:
+   ```bash
+   ssh pihole-primary 'tail -20 /var/log/pihole-dns-sync.log'
+   ```
+
+### ntfy Notifications
+
+**Topic**: gmdojo-monitoring
+**Server**: https://ntfy.sh
+
+**Failure Notification** (High Priority):
+- Sent when sync fails
+- Reasons: Secondary unreachable, config update fails, etc.
+- Tags: `warning`, `pihole`, `dns`, `network`
+
+**Recovery Notification** (Default Priority):
+- Sent when sync succeeds after previous failure
+- Confirms system back to normal
+- Tags: `white_check_mark`, `pihole`, `dns`
+
+**No notification** on normal successful syncs (quiet operation).
+
+### Subscribe to Notifications
+
+**Web**: https://ntfy.sh/gmdojo-monitoring
+
+**Mobile/Desktop**: Install ntfy app and subscribe to `gmdojo-monitoring`
+
+**CLI**:
+```bash
+# Subscribe to notifications
+curl -s ntfy.sh/gmdojo-monitoring/json
+
+# Test notification
+curl -H "Title: Test" -d "Testing" ntfy.sh/gmdojo-monitoring
+```
+
+### Sync Script Details
+
+**Features**:
+- Backs up secondary config before updating
+- Keeps last 5 backup copies
+- Validates config before applying
+- Restarts Pi-hole FTL after sync
+- Logs all operations
+- Tracks failure state for recovery notifications
+
+**Files**:
+- Script: `/root/sync-pihole-dns.sh`
+- Log: `/var/log/pihole-dns-sync.log`
+- Status: `/var/run/pihole-dns-sync.status`
+- Backups: `/etc/pihole/pihole.toml.backup-*` (on secondary)
+
+**Cron Job**:
+```bash
+# View cron schedule
+ssh pihole-primary 'crontab -l'
+
+# Disable sync (comment out cron)
+ssh pihole-primary 'crontab -l | sed "s/^0/# 0/" | crontab -'
+
+# Re-enable sync (uncomment cron)
+ssh pihole-primary 'crontab -l | sed "s/^# 0/0/" | crontab -'
+```
+
 ## Troubleshooting
 
 ### VIP Not Moving
