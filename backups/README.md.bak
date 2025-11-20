@@ -1,0 +1,394 @@
+# 180 Homelab Backup System
+
+Comprehensive backup and disaster recovery documentation for the 180 Homelab infrastructure.
+
+## Overview
+
+The backup system provides multi-layered data protection through three complementary strategies:
+
+1. **ZFS Replication** - Block-level replication for large datasets
+2. **Proxmox Backups** - VM/CT snapshots with compression
+3. **Backblaze CloudSync** - Offsite backup for critical data
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                   Backup Architecture                        │
+└─────────────────────────────────────────────────────────────┘
+
+Daily at 2:00 AM:
+┌──────────────────┐         ┌──────────────────┐
+│  pve-scratchy    │         │   pve-itchy      │
+│  (10.16.1.22)    │────────>│   (10.16.1.8)    │
+│  Primary Site    │  Backup │  Backup Target   │
+└──────────────────┘         └──────────────────┘
+
+Data Flow:
+├─ VM 110 (TrueNAS Primary - 10.16.1.6)
+│  └─> ZFS Snapshot (2:10 AM)
+│      └─> Replicate to VM 115 (TrueNAS DR - 10.16.1.20)
+│          └─> 923 GB FileServer dataset
+│
+├─ All VMs/CTs on pve-scratchy
+│  └─> Proxmox vzdump backups
+│      └─> Stored on pve-bk-truenas-primary (pve-itchy NVMe)
+│          └─> Compressed with zstd
+│
+├─ TrueNAS Configurations
+│  └─> Config database backup
+│      └─> Primary & DR configs to pve-bk-truenas-primary
+│          └─> SQLite database exports
+│
+└─ Critical Data (separate process)
+   └─> Backblaze B2 CloudSync
+       └─> Offsite redundancy
+```
+
+## Documentation Files
+
+### [Backup Orchestration Script](./proxmox-backup-orchestration.md)
+Detailed documentation of the main backup automation script:
+- Complete workflow and timeline
+- Script logic and error handling
+- TrueNAS configuration backups
+- ZFS replication monitoring
+- Proxmox VM/CT backups
+- Troubleshooting guide
+
+### [ZFS Replication System](./zfs-replication.md)
+ZFS block-level replication for large datasets:
+- Replication configuration
+- Snapshot schedule and retention
+- Performance characteristics
+- Failover procedures
+- Troubleshooting and monitoring
+
+### [Proxmox Backup Strategy](./proxmox-backups.md)
+VM and container backup details:
+- Backup targets and exclusions
+- Storage configuration
+- Compression and retention
+- Restore procedures
+- Space management
+
+## Quick Reference
+
+### Backup Schedule
+
+| Time | Task | Description |
+|------|------|-------------|
+| 2:00 AM | Script Start | Orchestration begins on pve-scratchy |
+| 2:05 AM | VM 115 Start | TrueNAS DR boots (if needed) |
+| 2:10 AM | ZFS Snapshot | TrueNAS creates FileServer snapshot |
+| 2:11 AM | ZFS Replication | 923 GB dataset replicates to DR |
+| 2:45 AM | Replication Done | ZFS replication completes |
+| 2:46 AM | Proxmox Backups | VM/CT backups begin |
+| 2:48 AM | Config Backups | TrueNAS configs saved |
+| 3:20 AM | Backups Complete | All backups finished |
+
+### What Gets Backed Up
+
+| Data | Method | Source | Destination | Frequency |
+|------|--------|--------|-------------|-----------|
+| **FileServer (923 GB)** | ZFS Replication | VM 110 | VM 115 | Daily 2:10 AM |
+| **VMs (all except 110,115)** | Proxmox vzdump | pve-scratchy | pve-bk-truenas-primary | Daily 2:46 AM |
+| **Containers (all)** | Proxmox vzdump | pve-scratchy | pve-bk-truenas-primary | Daily 2:46 AM |
+| **TrueNAS Configs** | Database Export | VMs 110,115 | pve-bk-truenas-primary | Daily 2:48 AM |
+| **Critical Data** | Backblaze B2 | VM 110 | Backblaze Cloud | Continuous |
+
+### Recovery Time Objectives (RTO)
+
+| Scenario | Recovery Time | Data Loss (RPO) |
+|----------|--------------|-----------------|
+| FileServer failure | < 10 minutes | < 24 hours |
+| Single VM failure | < 30 minutes | < 24 hours |
+| pve-scratchy total failure | 2-4 hours | < 24 hours |
+| Catastrophic (both hosts) | 1-2 days | < 24 hours |
+
+### Storage Locations
+
+```
+pve-itchy (10.16.1.8):
+├─ /mnt/pve/pve-bk-truenas-primary/
+│  ├─ dump/                          # Proxmox VM/CT backups
+│  │  ├─ vzdump-qemu-100-*.vma.zst   # VM backups
+│  │  └─ vzdump-lxc-101-*.tar.zst    # CT backups
+│  └─ truenas-configs/                # TrueNAS config backups
+│     ├─ truenas-primary-config-*.db
+│     └─ truenas-dr-config-*.db
+│
+└─ VM 115 (TrueNAS DR - 10.16.1.20):
+   └─ Tank/Data-DR-Copy/
+      └─ FileServer/                  # Replicated dataset
+```
+
+## Key Scripts and Files
+
+### Backup Orchestration
+```
+/usr/local/bin/proxmox-backup-orchestration.sh    # Main script (pve-scratchy)
+/var/log/proxmox-backup-orchestration.log         # Execution log
+```
+
+### Monitoring
+```
+/usr/local/bin/check-backup-status-ntfy.sh        # Status checker
+/usr/local/bin/proxmox-ntfy-monitor.sh            # System monitor
+```
+
+### Cron Schedule
+```bash
+# On pve-scratchy (10.16.1.22)
+0 2 * * * /usr/local/bin/proxmox-backup-orchestration.sh
+0 6 * * * /usr/local/bin/check-backup-status-ntfy.sh
+```
+
+## Common Operations
+
+### Check Backup Status
+
+**View latest backup log:**
+```bash
+ssh root@10.16.1.22 "tail -100 /var/log/proxmox-backup-orchestration.log"
+```
+
+**Check if backups completed today:**
+```bash
+ssh root@10.16.1.22 "grep 'Backup Cycle Summary' /var/log/proxmox-backup-orchestration.log | tail -1"
+```
+
+**Check storage usage:**
+```bash
+ssh root@10.16.1.8 "df -h /mnt/pve/pve-bk-truenas-primary"
+ssh root@10.16.1.8 "du -sh /mnt/pve/pve-bk-truenas-primary/dump/"
+```
+
+### Manual Backup Execution
+
+**Run backup script manually:**
+```bash
+ssh root@10.16.1.22 "/usr/local/bin/proxmox-backup-orchestration.sh"
+```
+
+**Backup single VM:**
+```bash
+vzdump 100 --storage pve-bk-truenas-primary --compress zstd --mode snapshot
+```
+
+**Create ZFS snapshot manually:**
+```bash
+ssh root@10.16.1.6 "zfs snapshot Tank/FileServer@manual-$(date +%Y%m%d-%H%M)"
+```
+
+### Restore Operations
+
+**List available VM backups:**
+```bash
+ssh root@10.16.1.8 "ls -lh /mnt/pve/pve-bk-truenas-primary/dump/vzdump-qemu-100-*"
+```
+
+**Restore VM from backup:**
+```bash
+qmrestore /mnt/pve/pve-bk-truenas-primary/dump/vzdump-qemu-100-2025_11_19-02_50_00.vma.zst 100 --storage local-lvm
+```
+
+**Restore container:**
+```bash
+pct restore 101 /mnt/pve/pve-bk-truenas-primary/dump/vzdump-lxc-101-2025_11_19-02_51_00.tar.zst --storage local-lvm
+```
+
+**Restore TrueNAS config:**
+```bash
+# Download config backup
+scp root@10.16.1.8:/mnt/pve/pve-bk-truenas-primary/truenas-configs/truenas-primary-config-20251119-*.db ./
+
+# Upload to TrueNAS via web UI:
+# System → General Settings → Upload Config
+```
+
+## Monitoring and Alerts
+
+### Email Notifications
+- **Recipient**: dp@getmassive.com.au
+- **Schedule**: Daily at 6:00 AM (post-backup check)
+- **Alert Conditions**:
+  - Backup cycle didn't complete
+  - Backup errors or warnings
+  - ZFS replication failures
+  - Storage capacity warnings
+
+### ntfy Notifications
+- **Topic**: gmdojo-monitoring
+- **Subscribe**: https://ntfy.sh/gmdojo-monitoring
+- **Alerts**:
+  - Storage critical (>90%)
+  - Backup job failures
+  - System health issues
+
+### healthchecks.io
+- **pve-scratchy**: https://hc-ping.com/94a543b5-6322-40e5-9648-cb2d534f3567
+- **Frequency**: Every 15 minutes
+- **Grace Period**: 30 minutes
+
+## Disaster Recovery Scenarios
+
+### Scenario 1: Single VM Failure
+
+**Recovery Steps:**
+1. Identify most recent backup
+2. Restore from pve-bk-truenas-primary
+3. Verify VM boots and data intact
+4. Update DNS/networking if needed
+
+**Recovery Time**: 15-30 minutes
+
+### Scenario 2: FileServer Data Loss
+
+**Recovery Steps:**
+1. Power on pve-itchy (if needed)
+2. Start VM 115 (TrueNAS DR)
+3. Mount replicated dataset read-write
+4. Update NFS exports
+5. Point clients to DR instance
+
+**Recovery Time**: < 10 minutes (instant failover)
+
+### Scenario 3: pve-scratchy Complete Failure
+
+**Recovery Steps:**
+1. Power on pve-itchy
+2. Restore critical VMs from pve-bk-truenas-primary:
+   - DNS/DHCP first
+   - Storage services
+   - Essential applications
+3. Verify network connectivity
+4. Restore remaining workloads
+
+**Recovery Time**: 2-4 hours for essential services
+
+### Scenario 4: Both Proxmox Hosts Failed
+
+**Recovery Steps:**
+1. Rebuild Proxmox on replacement hardware
+2. Mount pve-bk-truenas-primary storage
+3. Restore VMs from backup storage
+4. Mount TrueNAS DR storage (data intact on disks)
+5. Restore from Backblaze if needed
+
+**Recovery Time**: 1-2 days
+
+## Maintenance Tasks
+
+### Daily
+- Check email for backup completion notifications
+- Review critical alerts on ntfy
+
+### Weekly
+- Verify backup storage capacity
+- Check oldest backups and clean if needed
+- Review backup logs for warnings
+
+### Monthly
+- Verify ZFS replication integrity
+- Test restore of at least one VM
+- Review retention policies
+- Validate Backblaze sync status
+
+### Quarterly
+- Full disaster recovery drill
+- Test failover to TrueNAS DR
+- Verify all restore procedures
+- Update documentation
+
+## Performance Expectations
+
+### ZFS Replication
+- **Dataset Size**: 923 GB
+- **Daily Transfer**: Only changed blocks (typically < 10%)
+- **Duration**: 35-50 minutes
+- **Network**: 10GbE between hosts
+
+### Proxmox Backups
+- **Total Size**: ~500 GB (all VMs/CTs)
+- **Compressed Size**: ~150-200 GB (zstd compression)
+- **Duration**: 30-40 minutes
+- **Daily Growth**: +10-20 GB
+
+### Storage Capacity
+- **pve-bk-truenas-primary Total**: 232 GB available
+- **Current Usage**: ~65 GB (28%)
+- **Retention**: 5-7 days recommended
+- **Growth Rate**: ~10-15 GB/day
+
+## Excluded from Backups
+
+### VM 110 (Primary TrueNAS)
+- **Why**: Too large (923 GB datasets)
+- **Protection**:
+  - ZFS replication to VM 115
+  - Configuration backups daily
+  - Backblaze CloudSync for critical data
+
+### VM 115 (TrueNAS DR)
+- **Why**: It IS the backup target
+- **Protection**:
+  - Configuration backups daily
+  - Can be rebuilt from config if needed
+
+## Known Issues and Limitations
+
+### Primary TrueNAS Config Backup
+- **Issue**: SQLite export method not working on TrueNAS Scale
+- **Workaround**: Direct file copy (to be implemented)
+- **Impact**: DR config backups work, primary needs fix
+- **Status**: Tracked in todo list
+
+### ZFS Replication Monitoring
+- **Issue**: API query syntax may need adjustment
+- **Workaround**: Manual verification via SSH
+- **Impact**: Monitoring may miss replication status
+- **Status**: To be refined
+
+### Storage Capacity
+- **Limitation**: 232 GB limits retention to ~7 days
+- **Recommendation**: Monitor growth, adjust retention
+- **Future**: Consider expanding storage or offsite sync
+
+## Future Enhancements
+
+- [ ] Fix primary TrueNAS config backup method
+- [ ] Add Backblaze CloudSync status to dashboard
+- [ ] Implement automated restore testing
+- [ ] Add Grafana dashboard for backup metrics
+- [ ] Implement backup verification checksums
+- [ ] Add automated capacity planning alerts
+- [ ] Create restore runbooks for each VM type
+- [ ] Implement incremental-forever backup strategy
+
+## Related Documentation
+
+### Internal Documentation
+- [Monitoring System](../monitoring/README.md)
+- [Network Configuration](../NETWORK.md)
+- [Infrastructure Inventory](../INVENTORY.md)
+
+### External Resources
+- [Proxmox Backup Documentation](https://pve.proxmox.com/wiki/Backup_and_Restore)
+- [ZFS Replication Guide](https://openzfs.github.io/openzfs-docs/man/8/zfs-send.8.html)
+- [TrueNAS Scale Documentation](https://www.truenas.com/docs/scale/)
+
+## Support
+
+For backup system issues:
+1. Check logs at `/var/log/proxmox-backup-orchestration.log`
+2. Verify storage availability
+3. Test manual backup of single VM
+4. Review troubleshooting sections in detailed docs
+5. Open issue: https://github.com/dpgetmassive/180Homelab/issues
+
+---
+
+**Last Updated**: 2025-11-19
+**Maintainer**: Get Massive Dojo Infrastructure Team
+**Repository**: https://github.com/dpgetmassive/180Homelab
