@@ -22,7 +22,6 @@ NODES = {
             ('Hardware', 'echo "$(nproc) cores | $(free -g | grep Mem | awk \'{print $2}\')GB RAM | $(df -h / | tail -1 | awk \'{print $4}\') free"'),
             ('Updates', 'echo "$(apt list --upgradable 2>/dev/null | grep -v Listing | wc -l) total ($(apt list --upgradable 2>/dev/null | grep -i security | wc -l) security)"'),
             ('Uptime', 'uptime -p'),
-            ('Cluster Status', 'pvecm status | grep "Quorum information" | wc -l'),
         ],
         'gauges': [
             ('Memory', 'free | grep Mem | awk \'{printf "%.0f,%.0f", ($3/$2)*100, $2/1024/1024}\''),
@@ -43,7 +42,6 @@ NODES = {
             ('Hardware', 'echo "$(nproc) cores | $(free -g | grep Mem | awk \'{print $2}\')GB RAM | $(df -h / | tail -1 | awk \'{print $4}\') free"'),
             ('Updates', 'echo "$(apt list --upgradable 2>/dev/null | grep -v Listing | wc -l) total ($(apt list --upgradable 2>/dev/null | grep -i security | wc -l) security)"'),
             ('Uptime', 'uptime -p'),
-            ('Cluster Status', 'pvecm status | grep "Quorum information" | wc -l'),
         ],
         'gauges': [
             ('Memory', 'free | grep Mem | awk \'{printf "%.0f,%.0f", ($3/$2)*100, $2/1024/1024}\''),
@@ -635,6 +633,10 @@ HTML_TEMPLATE = '''
                 <div class="stat-value warning" id="stat-warnings">0</div>
             </div>
             <div class="stat-item">
+                <div class="stat-label">Cluster Quorum</div>
+                <div class="stat-value" id="stat-quorum" style="font-size: 0.8em;">-</div>
+            </div>
+            <div class="stat-item">
                 <div class="stat-label">Last Backup</div>
                 <div class="stat-value" id="stat-backup" style="font-size: 0.8em;">-</div>
             </div>
@@ -730,6 +732,23 @@ HTML_TEMPLATE = '''
                 document.getElementById('stat-up').textContent = upCount;
                 document.getElementById('stat-down').textContent = downCount;
                 document.getElementById('stat-warnings').textContent = warningCount;
+
+                // Update Cluster Quorum status
+                const quorumElement = document.getElementById('stat-quorum');
+                if (data.quorum) {
+                    if (data.quorum.quorate) {
+                        quorumElement.textContent = `${data.quorum.nodes} nodes (${data.quorum.votes}/${data.quorum.expected_votes} votes)`;
+                        quorumElement.classList.add('up');
+                        quorumElement.classList.remove('down', 'warning');
+                    } else {
+                        quorumElement.textContent = 'No Quorum';
+                        quorumElement.classList.add('down');
+                        quorumElement.classList.remove('up', 'warning');
+                    }
+                } else {
+                    quorumElement.textContent = 'N/A';
+                    quorumElement.classList.remove('up', 'down', 'warning');
+                }
 
                 // Update backup status
                 const backupElement = document.getElementById('stat-backup');
@@ -1234,6 +1253,54 @@ def get_cloudsync_status():
         print(f"Error getting CloudSync status: {e}")
         return []
 
+def get_cluster_quorum():
+    """Get Proxmox cluster quorum status"""
+    try:
+        # Try scratchy first, fall back to itchy
+        for node in ['scratchy', 'itchy']:
+            result = run_ssh_command(node, 'pvecm status')
+            if result != 'N/A':
+                break
+
+        if result == 'N/A':
+            return {'quorate': False, 'nodes': 0, 'votes': 0, 'error': 'Unable to reach cluster'}
+
+        quorum_info = {
+            'quorate': False,
+            'nodes': 0,
+            'votes': 0,
+            'expected_votes': 0,
+            'cluster_name': 'Unknown'
+        }
+
+        # Parse the output
+        for line in result.split('\n'):
+            line = line.strip()
+            if line.startswith('Name:'):
+                quorum_info['cluster_name'] = line.split(':', 1)[1].strip()
+            elif line.startswith('Quorate:'):
+                quorum_info['quorate'] = 'Yes' in line
+            elif line.startswith('Nodes:'):
+                try:
+                    quorum_info['nodes'] = int(line.split(':', 1)[1].strip())
+                except:
+                    pass
+            elif line.startswith('Total votes:'):
+                try:
+                    quorum_info['votes'] = int(line.split(':', 1)[1].strip())
+                except:
+                    pass
+            elif line.startswith('Expected votes:'):
+                try:
+                    quorum_info['expected_votes'] = int(line.split(':', 1)[1].strip())
+                except:
+                    pass
+
+        return quorum_info
+    except Exception as e:
+        print(f"Error getting cluster quorum: {e}")
+        return {'quorate': False, 'nodes': 0, 'votes': 0, 'error': str(e)}
+
 def fetch_ntfy_notifications():
     """Fetch notifications from ntfy"""
     try:
@@ -1433,6 +1500,7 @@ def api_status():
         'notifications': fetch_ntfy_notifications(),
         'replication': get_replication_status(),
         'cloudsync': get_cloudsync_status(),
+        'quorum': get_cluster_quorum(),
         'last_backup': last_backup.isoformat() if last_backup else None,
         'backup_age_hours': backup_age_hours
     }
