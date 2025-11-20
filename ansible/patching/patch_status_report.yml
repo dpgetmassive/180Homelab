@@ -1,0 +1,138 @@
+---
+- name: Generate Patch Status Report
+  hosts: all
+  gather_facts: yes
+  ignore_unreachable: yes
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 0
+      when: ansible_os_family == "Debian"
+      ignore_errors: yes
+
+    - name: Check for available updates
+      shell: apt list --upgradable 2>/dev/null | grep -v "Listing" | wc -l
+      register: updates_available
+      when: ansible_os_family == "Debian"
+      changed_when: false
+      ignore_errors: yes
+
+    - name: Get list of upgradable packages
+      shell: apt list --upgradable 2>/dev/null | grep -v "Listing" | head -20
+      register: package_list
+      when: ansible_os_family == "Debian"
+      changed_when: false
+      ignore_errors: yes
+
+    - name: Check if reboot required
+      stat:
+        path: /var/run/reboot-required
+      register: reboot_required
+      when: ansible_os_family == "Debian"
+      ignore_errors: yes
+
+    - name: Get system info
+      shell: |
+        echo "Kernel: $(uname -r)"
+        echo "Uptime: $(uptime -p)"
+        echo "Last Update: $(stat -c %y /var/lib/apt/periodic/update-success-stamp 2>/dev/null || echo 'Unknown')"
+      register: system_info
+      changed_when: false
+      ignore_errors: yes
+
+    - name: Store results
+      set_fact:
+        patch_status:
+          hostname: "{{ inventory_hostname }}"
+          ip: "{{ ansible_host }}"
+          updates_count: "{{ updates_available.stdout | default('0') }}"
+          needs_reboot: "{{ reboot_required.stat.exists | default(false) }}"
+          package_list: "{{ package_list.stdout_lines | default([]) }}"
+          system_info: "{{ system_info.stdout_lines | default([]) }}"
+          reachable: true
+      when: ansible_os_family == "Debian"
+      ignore_errors: yes
+
+- name: Generate Report Summary
+  hosts: localhost
+  gather_facts: yes
+
+  tasks:
+    - name: Create report directory
+      file:
+        path: /opt/ansible/reports
+        state: directory
+        mode: '0755'
+
+    - name: Generate HTML report
+      copy:
+        content: |
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <title>Homelab Patch Status - {{ ansible_date_time.date }}</title>
+              <style>
+                  body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+                  h1 { color: #333; }
+                  .summary { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+                  .host { background: white; padding: 15px; margin: 10px 0; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+                  .ok { color: #4CAF50; font-weight: bold; }
+                  .warning { color: #FF9800; font-weight: bold; }
+                  .critical { color: #F44336; font-weight: bold; }
+                  .unreachable { color: #9E9E9E; font-weight: bold; }
+                  table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+                  th, td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
+                  th { background-color: #4CAF50; color: white; }
+                  .badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 12px; }
+                  .badge-success { background: #4CAF50; color: white; }
+                  .badge-warning { background: #FF9800; color: white; }
+                  .badge-danger { background: #F44336; color: white; }
+                  .badge-info { background: #2196F3; color: white; }
+              </style>
+          </head>
+          <body>
+              <h1>Homelab Patch Status Report</h1>
+              <div class="summary">
+                  <h2>Summary</h2>
+                  <p><strong>Report Generated:</strong> {{ ansible_date_time.date }} {{ ansible_date_time.time }}</p>
+                  <p><strong>Total Hosts:</strong> {{ groups['all'] | length }}</p>
+                  <p><strong>Hosts Requiring Updates:</strong> <span class="warning">{{ hostvars.values() | selectattr('patch_status', 'defined') | selectattr('patch_status.updates_count', 'gt', '0') | list | length }}</span></p>
+                  <p><strong>Hosts Requiring Reboot:</strong> <span class="critical">{{ hostvars.values() | selectattr('patch_status', 'defined') | selectattr('patch_status.needs_reboot', 'equalto', true) | list | length }}</span></p>
+              </div>
+
+              <h2>Host Details</h2>
+              {% for host in groups['all'] %}
+              <div class="host">
+                  <h3>{{ host }}
+                  {% if hostvars[host].patch_status is defined %}
+                    {% if hostvars[host].patch_status.updates_count | int > 0 %}
+                      <span class="badge badge-warning">{{ hostvars[host].patch_status.updates_count }} updates</span>
+                    {% else %}
+                      <span class="badge badge-success">Up to date</span>
+                    {% endif %}
+                    {% if hostvars[host].patch_status.needs_reboot %}
+                      <span class="badge badge-danger">Reboot Required</span>
+                    {% endif %}
+                  {% else %}
+                    <span class="badge badge-info">No data</span>
+                  {% endif %}
+                  </h3>
+                  {% if hostvars[host].patch_status is defined %}
+                  <p><strong>IP:</strong> {{ hostvars[host].patch_status.ip }}</p>
+                  <p><strong>System Info:</strong></p>
+                  <pre>{{ hostvars[host].patch_status.system_info | join('\n') }}</pre>
+                  {% if hostvars[host].patch_status.updates_count | int > 0 %}
+                  <p><strong>Available Updates (showing first 20):</strong></p>
+                  <pre>{{ hostvars[host].patch_status.package_list | join('\n') }}</pre>
+                  {% endif %}
+                  {% else %}
+                  <p class="unreachable">Host unreachable or no data available</p>
+                  {% endif %}
+              </div>
+              {% endfor %}
+          </body>
+          </html>
+        dest: "/opt/ansible/reports/patch-status-{{ ansible_date_time.date }}.html"
+      delegate_to: localhost
